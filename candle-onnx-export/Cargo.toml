@@ -17,3 +17,13 @@ thiserror = "2.0"
 candle-core = { path = "../candle-core", package = "candle-core", version = "0.11.0" }
 candle-nn = { path = "../candle-nn", version = "0.11.0" }
 
+[dev-dependencies]
+tempfile = "3.10"
+
+[[example]]
+name = "simple_mlp"
+path = "examples/simple_mlp.rs"
+
+[[example]]
+name = "to_onnx_trait"
+path = "examples/to_onnx_trait.rs"
