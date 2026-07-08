@@ -244,6 +244,61 @@ pub fn softmax(graph: &mut OnnxGraph, input: Value, axis: i64, output_name: &str
     Ok(output)
 }
 
+/// Adds a standard-domain ONNX `Attention` node.
+///
+/// This helper uses the `ai.onnx::Attention` operator introduced in opset 24. Inputs may use
+/// the 3D layout `[batch, seq, hidden]`, in which case `hidden = num_heads * head_dim`.
+/// `attn_mask`, when present, is passed directly as the fourth input and must follow ONNX
+/// Attention mask semantics: either a boolean keep-mask, or a floating additive bias that is
+/// broadcastable to `[batch, q_num_heads, q_sequence_length, kv_sequence_length]`.
+pub fn attention(
+    graph: &mut OnnxGraph,
+    q: Value,
+    k: Value,
+    v: Value,
+    attn_mask: Option<Value>,
+    q_num_heads: i64,
+    kv_num_heads: i64,
+    scale: Option<f32>,
+    output_name: &str,
+) -> Result<Value> {
+    if q_num_heads <= 0 {
+        return Err(Error::InvalidGraph(format!(
+            "Attention q_num_heads must be positive, got {q_num_heads}"
+        )));
+    }
+    if kv_num_heads <= 0 {
+        return Err(Error::InvalidGraph(format!(
+            "Attention kv_num_heads must be positive, got {kv_num_heads}"
+        )));
+    }
+
+    graph.require_opset_version(24);
+
+    let elem_type = q.elem_type;
+    let mut inputs = vec![q.name, k.name, v.name];
+    if let Some(mask) = attn_mask {
+        inputs.push(mask.name);
+    }
+
+    let output = Value::new(output_name, elem_type, Shape::unknown());
+    let mut node = Node::new(
+        graph.unique_name("attention"),
+        "Attention",
+        inputs,
+        vec![output.name.clone()],
+    )
+    .with_attr(Attribute::int("q_num_heads", q_num_heads))
+    .with_attr(Attribute::int("kv_num_heads", kv_num_heads));
+
+    if let Some(scale) = scale {
+        node = node.with_attr(Attribute::float("scale", scale));
+    }
+
+    graph.add_node(node);
+    Ok(output)
+}
+
 /// Adds a portable exact-GELU decomposition using primitive ONNX ops.
 ///
 /// The emitted expression is `0.5 * x * (1 + erf(x / sqrt(2)))`, which avoids relying on contrib

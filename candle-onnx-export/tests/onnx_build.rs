@@ -188,6 +188,41 @@ fn constant_layer_norm_and_gelu_export_to_runtime_friendly_nodes() -> candle_onn
 }
 
 #[test]
+fn standard_attention_requests_opset_24() -> candle_onnx_export::Result<()> {
+    let mut graph = OnnxGraph::new("attention");
+    let q = graph.add_input(
+        "q",
+        TensorElementType::Float32,
+        Shape::from_dims([Dim::from("batch"), Dim::from("seq"), Dim::from(8usize)]),
+    );
+    let k = graph.add_input(
+        "k",
+        TensorElementType::Float32,
+        Shape::from_dims([Dim::from("batch"), Dim::from("seq"), Dim::from(8usize)]),
+    );
+    let v = graph.add_input(
+        "v",
+        TensorElementType::Float32,
+        Shape::from_dims([Dim::from("batch"), Dim::from("seq"), Dim::from(8usize)]),
+    );
+
+    let output = ops::attention(&mut graph, q, k, v, None, 2, 2, Some(0.5), "attn")?;
+    graph.add_output(output);
+
+    assert_eq!(graph.required_opset_version(), Some(24));
+
+    let model = graph.to_model_proto(&ExportOptions::default());
+    assert_eq!(model.opset_import[0].domain, "");
+    assert_eq!(model.opset_import[0].version, 24);
+
+    let graph = model.graph.expect("graph");
+    assert_eq!(graph.node.len(), 1);
+    assert_eq!(graph.node[0].op_type, "Attention");
+
+    Ok(())
+}
+
+#[test]
 fn export_context_creates_scoped_initializer_values() -> candle_onnx_export::Result<()> {
     let mut graph = OnnxGraph::new("ctx");
     let mut ctx = ExportContext::with_prefix(&mut graph, "block0");

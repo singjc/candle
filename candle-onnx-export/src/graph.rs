@@ -221,6 +221,7 @@ pub struct OnnxGraph {
     nodes: Vec<Node>,
     used_names: HashSet<String>,
     counter: usize,
+    required_opset_version: Option<i64>,
 }
 
 impl OnnxGraph {
@@ -235,6 +236,7 @@ impl OnnxGraph {
             nodes: Vec::new(),
             used_names: HashSet::new(),
             counter: 0,
+            required_opset_version: None,
         }
     }
 
@@ -315,6 +317,22 @@ impl OnnxGraph {
     pub fn nodes(&self) -> &[Node] {
         &self.nodes
     }
+    /// Records that this graph requires at least `version` of the default `ai.onnx` opset.
+    ///
+    /// [`OnnxGraph::to_model_proto`] and [`OnnxGraph::save`] will use the maximum of the
+    /// requested [`ExportOptions::opset_version`] and all versions requested by op builders.
+    pub fn require_opset_version(&mut self, version: i64) {
+        self.required_opset_version = Some(
+            self.required_opset_version
+                .map_or(version, |current| current.max(version)),
+        );
+    }
+
+    /// Returns the minimum default-domain opset version required by graph builders.
+    pub fn required_opset_version(&self) -> Option<i64> {
+        self.required_opset_version
+    }
+
 
     /// Returns graph initializers.
     pub fn initializers(&self) -> &[Initializer] {
@@ -341,9 +359,12 @@ impl OnnxGraph {
     /// External data conversion is applied by [`OnnxGraph::save`], because sidecar files require
     /// an output path for writing offsets and lengths.
     pub fn to_model_proto(&self, options: &ExportOptions) -> ModelProto {
+        let opset_version = self
+            .required_opset_version
+            .map_or(options.opset_version, |required| options.opset_version.max(required));
         let mut opset_import = vec![OperatorSetIdProto {
             domain: String::new(),
-            version: options.opset_version,
+            version: opset_version,
         }];
         opset_import.extend(
             options
