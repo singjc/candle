@@ -21,6 +21,7 @@ the relevant weights, shapes, and control-flow decisions.
   initializers, tensor-valued attributes, and raw node insertion.
 - Common op helpers:
   - `Gemm` for Candle-style `Linear` (`x @ weight.T + bias`)
+  - `linear_last_dim_gemm` for applying Candle-style linears to `[batch, seq, hidden]` tensors through a flattened 2D `Gemm` path
   - `MatMul`
   - dynamic binary ops: `Add`, `Sub`, `Mul`, `Div`, `Pow`
   - activation/math ops: `PRelu`, `Relu`, `Sigmoid`, `Tanh`, `Sqrt`, `Erf`,
