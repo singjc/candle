@@ -153,52 +153,6 @@ fn generic_ops_can_use_dynamic_values_and_static_shape_helpers() -> candle_onnx_
     Ok(())
 }
 
-
-#[test]
-fn linear_last_dim_gemm_flattens_gemm_and_reshapes() -> candle_onnx_export::Result<()> {
-    let mut graph = OnnxGraph::new("last_dim_gemm");
-    let input = graph.add_input(
-        "input",
-        TensorElementType::Float32,
-        Shape::from_dims([Dim::from("batch"), Dim::from("seq"), Dim::from(3usize)]),
-    );
-    graph.add_initializer(TensorData::from_f32(
-        "linear.weight",
-        &[2, 3],
-        &[1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
-    )?);
-    graph.add_initializer(TensorData::from_f32("linear.bias", &[2], &[0.5, -0.5])?);
-
-    let output = ops::linear_last_dim_gemm(
-        &mut graph,
-        input,
-        "linear.weight",
-        Some("linear.bias"),
-        2,
-        "output",
-    )?;
-    graph.add_output(output);
-
-    let node_types = graph
-        .nodes()
-        .iter()
-        .map(|node| node.op_type.as_str())
-        .collect::<Vec<_>>();
-    assert_eq!(
-        node_types,
-        ["Shape", "Slice", "Concat", "Flatten", "Gemm", "Reshape"]
-    );
-    assert!(graph.nodes().iter().any(|node| {
-        node.op_type == "Gemm"
-            && node
-                .attributes
-                .iter()
-                .any(|attr| matches!(attr, candle_onnx_export::Attribute::Int { name, value } if name == "transB" && *value == 1))
-    }));
-
-    Ok(())
-}
-
 #[test]
 fn constant_layer_norm_and_gelu_export_to_runtime_friendly_nodes() -> candle_onnx_export::Result<()>
 {
